@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ quiz.title }} - CodeQuiz</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .quiz-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+        }
+        .problem-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: none;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .problem-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        .difficulty-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+        .difficulty-easy { background-color: #28a745; }
+        .difficulty-medium { background-color: #ffc107; color: #212529; }
+        .difficulty-hard { background-color: #dc3545; }
+        .stats-card {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+        .timer-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    {% if error_message %}
+    <div style="background: #dc3545; color: white; padding: 1rem; text-align: center;">
+        <strong>Error:</strong> {{ error_message }}
+    </div>
+    {% endif %}
+    {% if not quiz %}
+    <div style="background: #ffc107; color: #212529; padding: 1rem; text-align: center;">
+        <strong>No quiz found or nothing to display.</strong>
+    </div>
+    {% endif %}
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'quiz:quiz_list' %}">
+                <i class="fas fa-code"></i> CodeQuiz
+            </a>
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="{% url 'quiz:quiz_list' %}">
+                    <i class="fas fa-arrow-left"></i> Back to Quizzes
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Quiz Header -->
+    <div class="quiz-header">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h1 class="display-4 mb-3">
+                        <i class="fas fa-quiz"></i> {{ quiz.title }}
+                    </h1>
+                    <p class="lead mb-0">{{ quiz.description|linebreaks }}</p>
+                </div>
+                <div class="col-md-4">
+                    <div class="stats-card card text-center p-4">
+                        <h5><i class="fas fa-clock"></i> Time Limit</h5>
+                        <div class="timer-display">
+                            {% if time_hours > 0 %}
+                                {{ time_hours }}h {{ time_minutes }}m
+                            {% else %}
+                                {{ time_minutes }} minutes
+                            {% endif %}
+                        </div>
+                        <small class="mt-2 d-block">{{ quiz.time_limit }} seconds total</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quiz Content -->
+    <div class="container my-5">
+        <!-- Quiz Info Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="fas fa-tasks fa-2x text-primary mb-3"></i>
+                        <h5 class="card-title">Problems</h5>
+                        <h2 class="text-primary">{{ problem_count }}</h2>
+                        <p class="card-text">Coding challenges to solve</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="fas fa-trophy fa-2x text-warning mb-3"></i>
+                        <h5 class="card-title">Difficulty</h5>
+                        <div class="mt-2">
+                            {% for problem in problems %}
+                                <span class="badge difficulty-{{ problem.difficulty }} difficulty-badge me-1">
+                                    {{ problem.get_difficulty_display }}
+                                </span>
+                            {% endfor %}
+                        </div>
+                        <p class="card-text mt-2">Mixed difficulty levels</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card text-center h-100">
+                    <div class="card-body">
+                        <i class="fas fa-code fa-2x text-success mb-3"></i>
+                        <h5 class="card-title">Language</h5>
+                        <h3 class="text-success">Python</h3>
+                        <p class="card-text">Primary programming language</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Problems List -->
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h3 class="mb-0">
+                    <i class="fas fa-list"></i> Problems Overview
+                </h3>
+            </div>
+            <div class="card-body p-0">
+                {% if problems %}
+                    <div class="row g-0">
+                        {% for problem in problems %}
+                        <div class="col-md-6 col-lg-4 p-3">
+                            <div class="problem-card card h-100">
+                                <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">Problem {{ forloop.counter }}</h6>
+                                    <span class="badge difficulty-{{ problem.difficulty }} difficulty-badge">
+                                        {{ problem.get_difficulty_display }}
+                                    </span>
+                                </div>
+                                <div class="card-body">
+                                    <h5 class="card-title">{{ problem.title }}</h5>
+                                    <p class="card-text">
+                                        {{ problem.description|truncatewords:20 }}
+                                    </p>
+                                    <div class="mt-auto">
+                                        <small class="text-muted">
+                                            <i class="fas fa-vial"></i> 
+                                            {{ problem.testcase_set.count }} test cases
+                                        </small>
+                                    </div>
+                                </div>
+                                <div class="card-footer bg-transparent">
+                                    <a href="{% url 'quiz:code_editor' problem.id %}" 
+                                       class="btn btn-primary w-100">
+                                        <i class="fas fa-play"></i> Start Problem
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>
+                        <h4>No Problems Available</h4>
+                        <p class="text-muted">This quiz doesn't have any problems yet.</p>
+                        <a href="{% url 'quiz:quiz_list' %}" class="btn btn-primary">
+                            <i class="fas fa-arrow-left"></i> Back to Quizzes
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        {% if problems %}
+        <!-- Start Quiz Button -->
+        <div class="text-center mt-4">
+            <a href="{% url 'quiz:code_editor' problems.0.id %}" 
+               class="btn btn-success btn-lg px-5 py-3">
+                <i class="fas fa-rocket"></i> Start Quiz Now
+            </a>
+            <p class="text-muted mt-2">
+                <i class="fas fa-info-circle"></i> 
+                You can start with any problem and navigate between them
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

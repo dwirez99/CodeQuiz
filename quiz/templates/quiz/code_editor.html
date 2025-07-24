@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ problem.title }} - CodeQuiz</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-python.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/theme-monokai.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #1a1a1a;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .main-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        .left-panel {
+            width: 50%;
+            background: #2d2d2d;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid #404040;
+        }
+        
+        .right-panel {
+            width: 50%;
+            background: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .panel-header {
+            background: #333;
+            padding: 10px 15px;
+            border-bottom: 1px solid #404040;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .exercise-info {
+            background: #252525;
+            padding: 15px;
+            border-bottom: 1px solid #404040;
+        }
+        
+        .exercise-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .exercise-description {
+            font-size: 14px;
+            color: #ccc;
+            line-height: 1.4;
+        }
+        
+        .code-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .code-header {
+            background: #2a2a2a;
+            padding: 8px 15px;
+            border-bottom: 1px solid #404040;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .file-tab {
+            background: #3a3a3a;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #ffd700;
+        }
+        
+        .code-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .run-btn {
+            background: #007acc;
+            color: white;
+        }
+        
+        .run-btn:hover {
+            background: #005a99;
+        }
+        
+        .copy-btn, .save-btn {
+            background: #404040;
+            color: #ccc;
+        }
+        
+        .copy-btn:hover, .save-btn:hover {
+            background: #505050;
+        }
+        
+        #editor {
+            flex: 1;
+            border: none;
+        }
+        
+        .terminal-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .terminal-header {
+            background: #2a2a2a;
+            padding: 8px 15px;
+            border-bottom: 1px solid #404040;
+            font-size: 14px;
+        }
+        
+        .terminal {
+            flex: 1;
+            background: #1e1e1e;
+            padding: 15px;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            color: #d4d4d4;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        .terminal-output {
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin-bottom: 5px;
+        }
+        
+        .terminal-input-line {
+            display: flex;
+            align-items: center;
+            margin-top: 10px;
+            background: #1e1e1e;
+            border-top: 1px solid #404040;
+            padding: 10px 0;
+        }
+        
+        .terminal-input {
+            background: transparent;
+            border: none;
+            color: #d4d4d4;
+            font-family: inherit;
+            font-size: inherit;
+            outline: none;
+            flex: 1;
+            padding: 5px;
+        }
+        
+        .terminal-input::placeholder {
+            color: #888;
+        }
+        
+        .line-execution {
+            background: rgba(255, 255, 0, 0.2);
+            animation: highlight 0.5s ease-out;
+        }
+        
+        @keyframes highlight {
+            0% { background: rgba(255, 255, 0, 0.4); }
+            100% { background: rgba(255, 255, 0, 0.1); }
+        }
+        
+        .execution-controls {
+            background: #2a2a2a;
+            padding: 10px 15px;
+            border-top: 1px solid #404040;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .exec-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .exec-run {
+            background: #28a745;
+            color: white;
+        }
+        
+        .exec-step {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .exec-reset {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .exec-submit {
+            background: #007bff;
+            color: white;
+        }
+        
+        .exec-btn:hover {
+            opacity: 0.8;
+        }
+        
+        .exec-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #666 !important;
+        }
+        
+        .exec-btn.active {
+            background: #ff6b6b !important;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Left Panel -->
+        <div class="left-panel">
+            <div class="panel-header">Exercise</div>
+            <div class="exercise-info">
+                <div class="exercise-title">{{ problem.title }}</div>
+                <div class="exercise-description">{{ problem.description|linebreaks }}</div>
+            </div>
+            
+            <div class="code-section">
+                <div class="code-header">
+                    <div class="file-tab">🐍 initials.py</div>
+                    <div class="code-actions">
+                        <button class="action-btn run-btn" id="editor-run-btn">▶ Run</button>
+                        <button class="action-btn copy-btn" id="copy-btn">📋</button>
+                        <button class="action-btn save-btn" id="save-btn">💾</button>
+                    </div>
+                </div>
+                <div id="editor">{{ problem.starter_code }}</div>
+            </div>
+        </div>
+        
+        <!-- Right Panel -->
+        <div class="right-panel">
+            <div class="terminal-section">
+                <div class="terminal-header">Terminal</div>
+                <div class="terminal" id="terminal">
+                    <div class="terminal-output" id="terminal-output"></div>
+                    <div class="terminal-input-line" id="input-line" style="display: none;">
+                        <input type="text" class="terminal-input" id="terminal-input" placeholder="Enter input...">
+                    </div>
+                </div>
+                
+                <div class="execution-controls">
+                    <button class="exec-btn exec-run" id="run-btn">▶ Run Python File</button>
+                    <button class="exec-btn exec-reset" id="reset-btn">🔄 Clear</button>
+                    <button class="exec-btn exec-submit" id="submit-btn">✅ Submit Solution</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Initialize ACE Editor
+        var editor = ace.edit("editor");
+        editor.setTheme("ace/theme/monokai");
+        editor.session.setMode("ace/mode/python");
+        editor.setFontSize(14);
+        editor.setReadOnly(false);
+        editor.setShowPrintMargin(false);
+        
+        // Execution state
+        let executionState = {
+            isExecuting: false,
+            currentProcess: null,
+            pendingInput: false
+        };
+        
+        // Terminal elements
+        const terminal = document.getElementById('terminal');
+        const terminalOutput = document.getElementById('terminal-output');
+        const inputLine = document.getElementById('input-line');
+        const terminalInput = document.getElementById('terminal-input');
+        
+        // Add terminal output
+        function addTerminalOutput(text, type = 'output') {
+            const outputDiv = document.createElement('div');
+            outputDiv.className = 'terminal-output';
+            
+            if (type === 'error') {
+                outputDiv.style.color = '#f48771';
+            } else if (type === 'input') {
+                outputDiv.style.color = '#569cd6';
+            } else if (type === 'info') {
+                outputDiv.style.color = '#6a9955';
+            }
+            
+            outputDiv.textContent = text;
+            terminalOutput.appendChild(outputDiv);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+        
+        // Show input prompt
+        function showInputPrompt() {
+            inputLine.style.display = 'flex';
+            terminalInput.focus();
+            executionState.pendingInput = true;
+        }
+        
+        // Hide input prompt
+        function hideInputPrompt() {
+            inputLine.style.display = 'none';
+            executionState.pendingInput = false;
+        }
+        
+        // Handle terminal input
+        terminalInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && executionState.pendingInput && executionState.currentProcess) {
+                const inputValue = terminalInput.value;
+                terminalInput.value = '';
+                hideInputPrompt();
+                
+                // Send input to the running process
+                executionState.currentProcess.sendInput(inputValue);
+            }
+        });
+        
+        // Process class to handle code execution with input/output
+        class CodeProcess {
+            constructor(code) {
+                this.code = code;
+                this.inputQueue = [];
+                this.inputResolvers = [];
+                this.isWaitingForInput = false;
+            }
+            
+            async run() {
+                try {
+                    // Send code to API for execution
+                    const response = await $.ajax({
+                        url: `/api/run/{{ problem.id }}/`,
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        data: JSON.stringify({
+                            code: this.code,
+                            language_id: 71,
+                            input: ""
+                        })
+                    });
+                    
+                    if (response.success) {
+                        if (response.output) {
+                            // Check if code needs input
+                            if (this.code.includes('input(')) {
+                                await this.handleInteractiveExecution();
+                            } else {
+                                addTerminalOutput(response.output);
+                            }
+                        }
+                        if (response.error) {
+                            addTerminalOutput(response.error, 'error');
+                        }
+                    } else {
+                        addTerminalOutput(response.error, 'error');
+                    }
+                } catch (error) {
+                    addTerminalOutput('Execution error: ' + error.message, 'error');
+                } finally {
+                    this.finish();
+                }
+            }
+            
+            async handleInteractiveExecution() {
+                // Simple simulation for interactive input
+                const lines = this.code.split('\n');
+                let output = '';
+                
+                for (let line of lines) {
+                    line = line.trim();
+                    if (!line || line.startsWith('#')) continue;
+                    
+                    if (line.includes('input(')) {
+                        // Extract prompt from input()
+                        const promptMatch = line.match(/input\(\s*["']([^"']*)["']\s*\)/);
+                        const prompt = promptMatch ? promptMatch[1] : '';
+                        
+                        if (prompt) {
+                            addTerminalOutput(prompt);
+                        }
+                        
+                        // Wait for user input
+                        const userInput = await this.waitForInput();
+                        addTerminalOutput(userInput);
+                        
+                        // Store the input for variable assignment
+                        const varMatch = line.match(/(\w+)\s*=\s*input/);
+                        if (varMatch) {
+                            const varName = varMatch[1];
+                            // Replace variable in subsequent lines
+                            for (let i = lines.indexOf(line) + 1; i < lines.length; i++) {
+                                lines[i] = lines[i].replace(new RegExp(`\\b${varName}\\b`, 'g'), `"${userInput}"`);
+                            }
+                        }
+                    } else if (line.includes('print(')) {
+                        // Extract and display print output
+                        const printMatch = line.match(/print\(\s*(.+)\s*\)/);
+                        if (printMatch) {
+                            let content = printMatch[1];
+                            // Remove quotes if it's a string literal
+                            if ((content.startsWith('"') && content.endsWith('"')) || 
+                                (content.startsWith("'") && content.endsWith("'"))) {
+                                content = content.slice(1, -1);
+                            }
+                            addTerminalOutput(content);
+                        }
+                    }
+                }
+            }
+            
+            waitForInput() {
+                return new Promise((resolve) => {
+                    if (this.inputQueue.length > 0) {
+                        resolve(this.inputQueue.shift());
+                    } else {
+                        this.inputResolvers.push(resolve);
+                        showInputPrompt();
+                        this.isWaitingForInput = true;
+                    }
+                });
+            }
+            
+            sendInput(input) {
+                if (this.inputResolvers.length > 0) {
+                    const resolve = this.inputResolvers.shift();
+                    resolve(input);
+                    this.isWaitingForInput = false;
+                } else {
+                    this.inputQueue.push(input);
+                }
+            }
+            
+            finish() {
+                executionState.isExecuting = false;
+                executionState.currentProcess = null;
+                executionState.pendingInput = false;
+                document.getElementById('run-btn').textContent = '▶ Run Python File';
+                document.getElementById('run-btn').disabled = false;
+                hideInputPrompt();
+            }
+        }
+        
+        // Button event handlers
+        document.getElementById('run-btn').addEventListener('click', function() {
+            if (executionState.isExecuting) {
+                // Stop current execution
+                if (executionState.currentProcess) {
+                    executionState.currentProcess.finish();
+                }
+                addTerminalOutput('\n[Process terminated]', 'info');
+                return;
+            }
+            
+            const code = editor.getValue().trim();
+            if (!code) {
+                addTerminalOutput('No code to execute', 'error');
+                return;
+            }
+            
+            // Clear previous output
+            terminalOutput.innerHTML = '';
+            
+            // Start execution
+            executionState.isExecuting = true;
+            this.textContent = '⏹ Stop';
+            this.disabled = false;
+            
+            const process = new CodeProcess(code);
+            executionState.currentProcess = process;
+            process.run();
+        });
+        
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            // Clear terminal output
+            terminalOutput.innerHTML = '';
+            
+            // Reset execution state
+            if (executionState.currentProcess) {
+                executionState.currentProcess.finish();
+            }
+            
+            executionState = {
+                isExecuting: false,
+                currentProcess: null,
+                pendingInput: false
+            };
+            
+            // Reset button states
+            document.getElementById('run-btn').textContent = '▶ Run Python File';
+            document.getElementById('run-btn').disabled = false;
+            hideInputPrompt();
+            
+            addTerminalOutput('[Terminal cleared]', 'info');
+        });
+        
+        document.getElementById('submit-btn').addEventListener('click', function() {
+            const code = editor.getValue();
+            if (!code.trim()) {
+                addTerminalOutput('No code to submit', 'error');
+                return;
+            }
+            
+            addTerminalOutput('\n[Submitting solution...]', 'info');
+            
+            $.ajax({
+                url: `/api/submit/{{ problem.id }}/`,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                data: JSON.stringify({
+                    code: code,
+                    language_id: 71
+                }),
+                success: function(response) {
+                    if (response.success) {
+                        addTerminalOutput(`Status: ${response.status}`);
+                        addTerminalOutput(`Score: ${response.score}%`);
+                        addTerminalOutput(`Test Cases: ${response.passed_cases}/${response.total_cases}`);
+                        
+                        if (response.results) {
+                            response.results.forEach((result, index) => {
+                                const status = result.is_correct ? '✓ PASS' : '✗ FAIL';
+                                addTerminalOutput(`Test ${index + 1}: ${status}`);
+                                if (!result.is_correct) {
+                                    addTerminalOutput(`  Expected: "${result.expected_output}"`);
+                                    addTerminalOutput(`  Got: "${result.actual_output}"`);
+                                }
+                            });
+                        }
+                    } else {
+                        addTerminalOutput('Submit Error: ' + response.error, 'error');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    addTerminalOutput('Network Error: ' + error, 'error');
+                }
+            });
+        });
+        
+        // Copy button
+        document.getElementById('copy-btn').addEventListener('click', function() {
+            navigator.clipboard.writeText(editor.getValue()).then(function() {
+                addTerminalOutput('[Code copied to clipboard]', 'info');
+            });
+        });
+        
+        // Save button (placeholder)
+        document.getElementById('save-btn').addEventListener('click', function() {
+            addTerminalOutput('[Code saved]', 'info');
+        });
+        
+        // Editor run button (triggers main run button)
+        document.getElementById('editor-run-btn').addEventListener('click', function() {
+            document.getElementById('run-btn').click();
+        });
+    </script>
+</body>
+</html>

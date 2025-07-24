@@ -1,0 +1,336 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrahead %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+&rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+&rsaquo; <a href="{% url 'admin:quiz_submission_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+&rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1>{{ title }}</h1>
+    
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Submission Details</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th>Student:</th>
+                            <td>{{ submission.user.get_full_name|default:submission.user.username }}</td>
+                        </tr>
+                        <tr>
+                            <th>Problem:</th>
+                            <td>{{ submission.problem.title }}</td>
+                        </tr>
+                        <tr>
+                            <th>Quiz:</th>
+                            <td>{{ submission.problem.quiz.title }}</td>
+                        </tr>
+                        <tr>
+                            <th>Status:</th>
+                            <td>
+                                <span class="badge 
+                                    {% if submission.status == 'Accepted' %}bg-success
+                                    {% elif submission.status == 'Wrong Answer' %}bg-danger
+                                    {% elif submission.status == 'Time Limit Exceeded' %}bg-warning text-dark
+                                    {% elif submission.status == 'Compilation Error' %}bg-secondary
+                                    {% else %}bg-info{% endif %}">
+                                    {{ submission.status }}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Score:</th>
+                            <td>{{ submission.score }}/100</td>
+                        </tr>
+                        <tr>
+                            <th>Language:</th>
+                            <td>
+                                {% if submission.language_id == 71 %}Python 3
+                                {% elif submission.language_id == 62 %}Java 8
+                                {% elif submission.language_id == 54 %}C++ (GCC 9.2)
+                                {% elif submission.language_id == 50 %}C (GCC 9.2)
+                                {% elif submission.language_id == 63 %}JavaScript
+                                {% else %}Language ID: {{ submission.language_id }}
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>Submitted:</th>
+                            <td>{{ submission.submitted_at|date:"M d, Y H:i" }}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h3>Problem Description</h3>
+                </div>
+                <div class="card-body">
+                    <h5>{{ submission.problem.title }}</h5>
+                    <p><strong>Difficulty:</strong> {{ submission.problem.get_difficulty_display }}</p>
+                    <div class="problem-description">
+                        {{ submission.problem.description|linebreaks }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h3>Submitted Code</h3>
+                        <div>
+                            <button id="copy-code-btn" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-copy"></i> Copy Code
+                            </button>
+                            <button id="test-code-btn" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-play"></i> Test Code
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div id="code-viewer" style="height: 400px; border: 1px solid #ccc;">{{ submission.code }}</div>
+                </div>
+            </div>
+
+            <div id="test-section" class="card mt-3" style="display: none;">
+                <div class="card-header">
+                    <h3>Test Results</h3>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="test-input" class="form-label">Test Input:</label>
+                        <textarea id="test-input" class="form-control" rows="3" 
+                                  placeholder="Enter test input..."></textarea>
+                    </div>
+                    <button id="run-test-btn" class="btn btn-success">
+                        <i class="fas fa-play"></i> Run Test
+                    </button>
+                    
+                    <div id="test-output" class="mt-3" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h5>Output:</h5>
+                                <pre id="test-output-content" class="bg-dark text-white p-3"></pre>
+                            </div>
+                            <div class="col-md-6">
+                                <h5>Errors:</h5>
+                                <pre id="test-error-content" class="bg-danger text-white p-3"></pre>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <small class="text-muted">
+                                Status: <span id="test-status"></span> | 
+                                Time: <span id="test-time"></span> | 
+                                Memory: <span id="test-memory"></span>
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {% if submission.problem.testcase_set.exists %}
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h3>Test Cases</h3>
+                </div>
+                <div class="card-body">
+                    {% for test_case in submission.problem.testcase_set.all %}
+                    <div class="test-case mb-3 p-3 border rounded {% if test_case.is_sample %}bg-light{% endif %}">
+                        <h6>Test Case {{ forloop.counter }} {% if test_case.is_sample %}(Sample){% endif %}</h6>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <strong>Input:</strong>
+                                <pre class="bg-secondary text-white p-2 rounded small">{{ test_case.input_data }}</pre>
+                            </div>
+                            <div class="col-md-6">
+                                <strong>Expected Output:</strong>
+                                <pre class="bg-secondary text-white p-2 rounded small">{{ test_case.expected_output }}</pre>
+                            </div>
+                        </div>
+                        <button class="btn btn-sm btn-outline-info test-with-case" 
+                                data-input="{{ test_case.input_data }}" 
+                                data-expected="{{ test_case.expected_output }}">
+                            Test with this case
+                        </button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+#code-viewer {
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+}
+.test-case {
+    transition: background-color 0.3s;
+}
+.test-case:hover {
+    background-color: #f8f9fa !important;
+}
+pre {
+    max-height: 200px;
+    overflow-y: auto;
+}
+</style>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-python.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-java.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-c_cpp.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-javascript.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/theme-github.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Ace Editor for code viewing (read-only)
+    var codeViewer = ace.edit("code-viewer");
+    codeViewer.setTheme("ace/theme/github");
+    codeViewer.setReadOnly(true);
+    
+    // Set mode based on language
+    const languageId = {{ submission.language_id|default:"71" }};
+    const languageModes = {
+        71: 'python',     // Python 3
+        62: 'java',       // Java
+        54: 'c_cpp',      // C++
+        50: 'c_cpp',      // C
+        63: 'javascript'  // JavaScript
+    };
+    
+    const mode = languageModes[languageId] || 'python';
+    codeViewer.session.setMode("ace/mode/" + mode);
+    codeViewer.setFontSize(14);
+    codeViewer.setOptions({
+        showPrintMargin: false,
+        highlightActiveLine: false,
+        highlightGutterLine: false
+    });
+
+    // Copy code functionality
+    document.getElementById('copy-code-btn').addEventListener('click', function() {
+        const code = codeViewer.getValue();
+        navigator.clipboard.writeText(code).then(function() {
+            // Show success feedback
+            const btn = document.getElementById('copy-code-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            btn.classList.remove('btn-outline-secondary');
+            btn.classList.add('btn-success');
+            
+            setTimeout(function() {
+                btn.innerHTML = originalText;
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    });
+
+    // Show test section
+    document.getElementById('test-code-btn').addEventListener('click', function() {
+        const testSection = document.getElementById('test-section');
+        testSection.style.display = testSection.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // Function to run test
+    function runTest(input = '') {
+        const code = codeViewer.getValue();
+        
+        // Show test output section
+        document.getElementById('test-output').style.display = 'block';
+        document.getElementById('test-output-content').textContent = 'Running...';
+        document.getElementById('test-error-content').textContent = '';
+
+        // Prepare CSRF token
+        const csrfMetaTag = document.querySelector('meta[name=csrf-token]');
+        const csrfToken = csrfMetaTag ? csrfMetaTag.getAttribute('content') : '';
+        
+        if (!csrfToken) {
+            console.error('CSRF token not found');
+            document.getElementById('test-error-content').textContent = 'CSRF token not found. Please refresh the page.';
+            return;
+        }
+
+        fetch('{% url "admin:execute_code" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken || ''
+            },
+            body: JSON.stringify({
+                code: code,
+                language_id: languageId,
+                input: input
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('test-output-content').textContent = data.output || '(no output)';
+                document.getElementById('test-error-content').textContent = data.error || '(no errors)';
+                document.getElementById('test-status').textContent = data.status;
+                document.getElementById('test-time').textContent = data.execution_time ? `${data.execution_time}s` : '-';
+                document.getElementById('test-memory').textContent = data.memory ? `${data.memory} KB` : '-';
+            } else {
+                document.getElementById('test-error-content').textContent = data.error;
+                document.getElementById('test-status').textContent = 'Error';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('test-error-content').textContent = `Error: ${error.message}`;
+        });
+    }
+
+    // Run test button
+    document.getElementById('run-test-btn').addEventListener('click', function() {
+        const input = document.getElementById('test-input').value;
+        runTest(input);
+    });
+
+    // Test with specific test case
+    document.querySelectorAll('.test-with-case').forEach(button => {
+        button.addEventListener('click', function() {
+            const input = this.getAttribute('data-input');
+            const expected = this.getAttribute('data-expected');
+            
+            // Set input and show test section
+            document.getElementById('test-input').value = input;
+            document.getElementById('test-section').style.display = 'block';
+            
+            // Run the test
+            runTest(input);
+            
+            // Scroll to test section
+            document.getElementById('test-section').scrollIntoView({ behavior: 'smooth' });
+        });
+    });
+});
+</script>
+
+{% endblock %}
