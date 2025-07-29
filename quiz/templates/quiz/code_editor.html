@@ -254,6 +254,14 @@
             <div class="exercise-info">
                 <div class="exercise-title">{{ problem.title }}</div>
                 <div class="exercise-description">{{ problem.description|linebreaks }}</div>
+                <div style="margin-top:10px;">
+                    <label for="language-select" style="font-size:13px;">Language:</label>
+                    <select id="language-select" style="padding:2px 8px; font-size:13px;">
+                        {% for id, name in problem.LANGUAGE_CHOICES %}
+                            <option value="{{ id }}" {% if id == problem.language_id %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
             </div>
             
             <div class="code-section">
@@ -281,7 +289,7 @@
                 </div>
                 
                 <div class="execution-controls">
-                    <button class="exec-btn exec-run" id="run-btn">▶ Run Python File</button>
+                    <button class="exec-btn exec-run" id="run-btn"><span id="run-btn-label">▶ Run</span> <span id="run-lang-label">Python</span> File</button>
                     <button class="exec-btn exec-reset" id="reset-btn">🔄 Clear</button>
                     <button class="exec-btn exec-submit" id="submit-btn">✅ Submit Solution</button>
                 </div>
@@ -293,16 +301,121 @@
         // Initialize ACE Editor
         var editor = ace.edit("editor");
         editor.setTheme("ace/theme/monokai");
-        editor.session.setMode("ace/mode/python");
         editor.setFontSize(14);
         editor.setReadOnly(false);
         editor.setShowPrintMargin(false);
-        
+
+        // --- Language Mode Mapping ---
+        const languageAceModes = {
+            71: 'python', // Python 3
+            70: 'python', // Python 2
+            54: 'c_cpp', // C++
+            50: 'c_cpp', // C
+            62: 'java',
+            63: 'javascript',
+            68: 'php',
+            72: 'ruby',
+            60: 'golang',
+            73: 'rust',
+            52: 'csharp',
+            61: 'kotlin',
+            78: 'kotlin',
+            80: 'typescript',
+            74: 'swift',
+            79: 'scala',
+            69: 'perl',
+            65: 'r',
+            67: 'pascal',
+            64: 'lua',
+            75: 'haskell',
+            76: 'objectivec',
+            77: 'groovy',
+            49: 'c_cpp',
+            55: 'c_cpp',
+            56: 'c_cpp',
+            57: 'c_cpp',
+            58: 'c_cpp',
+            59: 'c_cpp',
+        };
+
+        // --- Dynamically load ACE mode script ---
+        function loadAceMode(mode, callback) {
+            if (!mode) return;
+            var scriptId = 'ace-mode-' + mode;
+            if (document.getElementById(scriptId)) {
+                if (callback) callback();
+                return;
+            }
+            var script = document.createElement('script');
+            script.id = scriptId;
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/mode-' + mode + '.js';
+            script.onload = callback || function(){};
+            document.head.appendChild(script);
+        }
+
+        // Set initial language mode
+        var initialLangId = parseInt(document.getElementById('language-select').value);
+        var initialAceMode = languageAceModes[initialLangId] || 'plain_text';
+        loadAceMode(initialAceMode, function() {
+            editor.session.setMode('ace/mode/' + initialAceMode);
+        });
+
+        // --- Language select change handler ---
+        const languageNames = {
+            71: 'Python',
+            70: 'Python 2',
+            54: 'C++',
+            50: 'C',
+            62: 'Java',
+            63: 'JavaScript',
+            68: 'PHP',
+            72: 'Ruby',
+            60: 'Go',
+            73: 'Rust',
+            52: 'C#',
+            61: 'Kotlin',
+            78: 'Kotlin',
+            80: 'TypeScript',
+            74: 'Swift',
+            79: 'Scala',
+            69: 'Perl',
+            65: 'R',
+            67: 'Pascal',
+            64: 'Lua',
+            75: 'Haskell',
+            76: 'Objective-C',
+            77: 'Groovy',
+            49: 'C',
+            55: 'C++',
+            56: 'C++',
+            57: 'C++',
+            58: 'C++',
+            59: 'C++',
+        };
+        function updateRunButtonLabel(langId) {
+            var langName = languageNames[langId] || 'Code';
+            var runLangLabel = document.getElementById('run-lang-label');
+            if (runLangLabel) {
+                runLangLabel.textContent = langName;
+            }
+        }
+        // Set initial run button label
+        updateRunButtonLabel(initialLangId);
+        document.getElementById('language-select').addEventListener('change', function() {
+            var langId = parseInt(this.value);
+            var aceMode = languageAceModes[langId] || 'plain_text';
+            loadAceMode(aceMode, function() {
+                editor.session.setMode('ace/mode/' + aceMode);
+            });
+            updateRunButtonLabel(langId);
+        });
+
         // Execution state
         let executionState = {
             isExecuting: false,
             currentProcess: null,
-            pendingInput: false
+            pendingInput: false,
+            language_id: initialLangId
         };
         
         // Terminal elements
@@ -356,13 +469,13 @@
         
         // Process class to handle code execution with input/output
         class CodeProcess {
-            constructor(code) {
+            constructor(code, language_id) {
                 this.code = code;
+                this.language_id = language_id;
                 this.inputQueue = [];
                 this.inputResolvers = [];
                 this.isWaitingForInput = false;
             }
-            
             async run() {
                 try {
                     // Send code to API for execution
@@ -372,25 +485,20 @@
                         headers: { 'Content-Type': 'application/json' },
                         data: JSON.stringify({
                             code: this.code,
-                            language_id: 71,
+                            language_id: this.language_id,
                             input: ""
                         })
                     });
-                    
                     if (response.success) {
-                        if (response.output) {
-                            // Check if code needs input
-                            if (this.code.includes('input(')) {
-                                await this.handleInteractiveExecution();
-                            } else {
-                                addTerminalOutput(response.output);
-                            }
+                        // Always show output, even if empty
+                        if (typeof response.output !== 'undefined') {
+                            addTerminalOutput(response.output || '[No output]');
                         }
                         if (response.error) {
                             addTerminalOutput(response.error, 'error');
                         }
                     } else {
-                        addTerminalOutput(response.error, 'error');
+                        addTerminalOutput(response.error || '[No output]', 'error');
                     }
                 } catch (error) {
                     addTerminalOutput('Execution error: ' + error.message, 'error');
@@ -472,7 +580,11 @@
                 executionState.isExecuting = false;
                 executionState.currentProcess = null;
                 executionState.pendingInput = false;
-                document.getElementById('run-btn').textContent = '▶ Run Python File';
+                updateRunButtonLabel(initialLangId);
+                var runBtnLabel = document.getElementById('run-btn-label');
+                if (runBtnLabel) {
+                    runBtnLabel.textContent = '▶ Run';
+                }
                 document.getElementById('run-btn').disabled = false;
                 hideInputPrompt();
             }
@@ -503,7 +615,8 @@
             this.textContent = '⏹ Stop';
             this.disabled = false;
             
-            const process = new CodeProcess(code);
+            const langId = parseInt(document.getElementById('language-select').value);
+            const process = new CodeProcess(code, langId);
             executionState.currentProcess = process;
             process.run();
         });
@@ -524,7 +637,11 @@
             };
             
             // Reset button states
-            document.getElementById('run-btn').textContent = '▶ Run Python File';
+            updateRunButtonLabel(initialLangId);
+            var runBtnLabel = document.getElementById('run-btn-label');
+            if (runBtnLabel) {
+                runBtnLabel.textContent = '▶ Run';
+            }
             document.getElementById('run-btn').disabled = false;
             hideInputPrompt();
             
@@ -540,20 +657,20 @@
             
             addTerminalOutput('\n[Submitting solution...]', 'info');
             
+            const langId = parseInt(document.getElementById('language-select').value);
             $.ajax({
                 url: `/api/submit/{{ problem.id }}/`,
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 data: JSON.stringify({
                     code: code,
-                    language_id: 71
+                    language_id: langId
                 }),
                 success: function(response) {
                     if (response.success) {
                         addTerminalOutput(`Status: ${response.status}`);
                         addTerminalOutput(`Score: ${response.score}%`);
                         addTerminalOutput(`Test Cases: ${response.passed_cases}/${response.total_cases}`);
-                        
                         if (response.results) {
                             response.results.forEach((result, index) => {
                                 const status = result.is_correct ? '✓ PASS' : '✗ FAIL';

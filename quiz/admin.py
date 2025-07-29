@@ -8,10 +8,15 @@ class QuizAdmin(admin.ModelAdmin):
     list_display = ('title', 'created_at', 'time_limit')
     search_fields = ('title', 'description')
 
-@admin.register(Problem)  
+@admin.register(Problem)
 class ProblemAdmin(admin.ModelAdmin):
-    list_display = ('title', 'quiz', 'difficulty')
-    list_filter = ('quiz', 'difficulty')
+    list_display = ('title', 'quiz', 'difficulty', 'get_language')
+    list_filter = ('quiz', 'difficulty', 'language_id')
+    fields = ('title', 'quiz', 'difficulty', 'language_id', 'description', 'starter_code', 'solution')
+
+    def get_language(self, obj):
+        return dict(obj.LANGUAGE_CHOICES).get(obj.language_id, obj.language_id)
+    get_language.short_description = 'Language'
 
 @admin.register(TestCase)
 class TestCaseAdmin(admin.ModelAdmin):

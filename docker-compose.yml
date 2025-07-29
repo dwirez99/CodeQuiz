@@ -1,61 +1,88 @@
+version: '3.8'
+
 services:
+  # This is the database for your main web application
   db:
     image: postgres:13
     environment:
-      POSTGRES_DB: coding_quiz
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+      - POSTGRES_DB=coding_quiz
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d coding_quiz"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # Redis instance used by Judge0 for its job queue
   redis:
     image: redis:6-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
 
-  judge0:
-    image: judge0/judge0:1.13.0
-    volumes:
-      - ./tmp/judge0:/tmp:rw
-    privileged: true
-    shm_size: 256M
-    environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - POSTGRES_HOST=judge0-db
-      - POSTGRES_PORT=5432
-      - POSTGRES_DB=judge0
-      - POSTGRES_USER=judge0
-      - POSTGRES_PASSWORD=YourPasswordHere123
-      - RAILS_ENV=production
-      - RAILS_MAX_THREADS=5
-      - SECRET_KEY_BASE=your_secret_key_base_here_make_it_very_long_and_random
-      - ENABLE_WAIT_RESULT=true
-      - ENABLE_COMPILER_OPTIONS=true
-    depends_on:
-      - redis
-      - judge0-db
-    ports:
-      - "2358:2358"
-    
+  # This is the separate database used exclusively by the Judge0 service
   judge0-db:
     image: postgres:13
     environment:
-      POSTGRES_DB: judge0
-      POSTGRES_USER: judge0
-      POSTGRES_PASSWORD: YourPasswordHere123
+      - POSTGRES_DB=judge0
+      - POSTGRES_USER=judge0
+      - POSTGRES_PASSWORD=judge0password
     volumes:
       - judge0_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U judge0 -d judge0"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+  # The Judge0 code execution engine
+  judge0:
+    image: judge0/judge0:latest
+    privileged: true
+    environment:
+      - DATABASE_URL=postgresql://judge0:judge0password@judge0-db:5432/judge0
+      - REDIS_URL=redis://redis:6379/0
+      - JUDGE0_REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+    ports:
+      - "2358:2358"
+    volumes:
+      - judge0_box:/box
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    tmpfs:
+      - /run
+      - /tmp
+    security_opt:
+      - seccomp:unconfined
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2358/languages"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      judge0-db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
+  # Your main web application
   web:
     build: .
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+    # IMPORTANT: Now waits for Judge0 to be healthy, not just started.
     depends_on:
-      - db
-      - redis
-      - judge0
+      db:
+        condition: service_healthy
+      judge0:
+        condition: service_healthy
     environment:
       - DEBUG=1
       - DATABASE_URL=postgres://postgres:password@db:5432/coding_quiz
@@ -63,3 +90,4 @@ services:
 volumes:
   postgres_data:
   judge0_db_data:
+  judge0_box:
